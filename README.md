@@ -46,7 +46,6 @@ Class for generating .empf files
 
 * [EmpfGenerator](#EmpfGenerator)
     * [new EmpfGenerator([options])](#new_EmpfGenerator_new)
-    * [.printBedData](#EmpfGenerator+printBedData) : <code>Object</code>
     * [.addImage(imageBuf, x_mm, y_mm, width_mm, height_mm, [options])](#EmpfGenerator+addImage)
     * [.export(outPath)](#EmpfGenerator+export)
 
