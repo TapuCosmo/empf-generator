@@ -7,7 +7,7 @@ Programmatically create print files for your eufyMake E1 UV printer!
 # Install
 
 ```bash
-npm install git+https://github.com/TapuCosmo/empf-generator.git
+npm install empf-generator
 ```
 
 # Example
@@ -27,7 +27,6 @@ const outPath = "./output.empf";
   });
   await generator.addImage(image, 0, 0, 8.5 * 25.4, 11 * 25.4, {
     inkMode: InkModeEnum.white_cmyk,
-    // Due to a eufyMake Studio bug, ink layer counts are not currently restored on import
     whiteLayers: 2,
     cmykLayers: 1
   });
@@ -60,6 +59,7 @@ Creates a new EmpfGenerator.
 | [options] | <code>Object</code> |  | The generator options. |
 | [options.printBed] | <code>PrintBedEnum</code> | <code>PrintBedEnum.standardFlatbed</code> | The print bed to use. |
 | [options.projectName] | <code>string</code> | <code>&quot;Untitled Design&quot;</code> | The name of the project. |
+| [options.canvasBackground] | <code>string</code> | <code>&quot;#ffffff&quot;</code> | The canvas background color, as a hex code. |
 
 <a name="EmpfGenerator+addImage"></a>
 
@@ -84,6 +84,10 @@ Adds an image to the canvas.
 | [options.flipX] | <code>boolean</code> | <code>false</code> | Whether to flip the image horizontally. |
 | [options.flipY] | <code>boolean</code> | <code>false</code> | Whether to flip the image vertically. |
 | [options.opacity] | <code>number</code> | <code>1</code> | The opacity of the image. |
+| [options.layerName] | <code>string</code> | <code>&quot;Image Layer&quot;</code> | The name of the image layer. |
+| [options.lock] | <code>boolean</code> | <code>false</code> | Whether the image is locked. |
+| [options.visible] | <code>boolean</code> | <code>true</code> | Whether the image is visible. |
+| [options.skipPrint] | <code>boolean</code> | <code>false</code> | Whether to skip printing the image. |
 
 <a name="EmpfGenerator+export"></a>
 

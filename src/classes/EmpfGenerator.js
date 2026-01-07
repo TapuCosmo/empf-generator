@@ -2,7 +2,7 @@
 
 /*
 .empf Generator
-Copyright (C) 2025 Vietbao Tran
+Copyright (C) 2025-2026 Vietbao Tran
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License as published by
@@ -44,9 +44,14 @@ class EmpfGenerator {
    * @constructor
    * @param {Object} [options] - The generator options.
    * @param {PrintBedEnum} [options.printBed=PrintBedEnum.standardFlatbed] - The print bed to use.
-   * @param {string} [options.projectName="Untitled Design"] - The name of the project.
+   * @param {string} [options.projectName=Untitled Design] - The name of the project.
+   * @param {string} [options.canvasBackground=#ffffff] - The canvas background color, as a hex code.
    */
-  constructor({printBed = PrintBedEnum.standardFlatbed, projectName = "Untitled Design"}) {
+  constructor({
+    printBed = PrintBedEnum.standardFlatbed,
+    projectName = "Untitled Design",
+    canvasBackground = "#ffffff"
+  }) {
     this._printBed = printBed;
     this._projectName = projectName;
 
@@ -54,6 +59,7 @@ class EmpfGenerator {
     this._canvasObjects = [];
     this._canvasID = crypto.randomBytes(16).toString("hex");
     this._projectID = crypto.randomBytes(16).toString("hex");
+    this._canvasBackground = canvasBackground;
   }
 
   /**
@@ -73,6 +79,10 @@ class EmpfGenerator {
    * @param {boolean} [options.flipX=false] - Whether to flip the image horizontally.
    * @param {boolean} [options.flipY=false] - Whether to flip the image vertically.
    * @param {number} [options.opacity=1] - The opacity of the image.
+   * @param {string} [options.layerName=Image Layer] - The name of the image layer.
+   * @param {boolean} [options.lock=false] - Whether the image is locked.
+   * @param {boolean} [options.visible=true] - Whether the image is visible.
+   * @param {boolean} [options.skipPrint=false] - Whether to skip printing the image.
    */
   async addImage(imageBuf, x_mm, y_mm, width_mm, height_mm, options = {}) {
     if (!(imageBuf instanceof Buffer)) {
@@ -86,6 +96,7 @@ class EmpfGenerator {
     ].includes(mime)) {
       throw new TypeError("Unsupported image MIME type");
     }
+
     options.inkMode ??= InkModeEnum.white_cmyk;
     if ([
       InkModeEnum.white_cmyk,
@@ -117,6 +128,8 @@ class EmpfGenerator {
     options.flipX ??= false;
     options.flipY ??= false;
     options.opacity ??= 1;
+    options.layerName ??= "Image Layer";
+    options.visible ??= true;
 
     this._canvasObjects.push({
       type: CanvasObjectEnum.image,
@@ -173,6 +186,14 @@ class EmpfGenerator {
           flipX: canvasObject.flipX,
           flipY: canvasObject.flipY,
           opacity: canvasObject.opacity,
+          visible: canvasObject.visible,
+          selectable: !canvasObject.lock,
+          hasControls: !canvasObject.lock,
+          evented: !canvasObject.lock,
+          _layerName: canvasObject.layerName,
+          _layerNameCus: canvasObject.layerName,
+          _isLock: canvasObject.lock,
+          _skipPrint: canvasObject.skipPrint,
           // All of these properties are saved by eufyMake Studio, so adding them here for consistency
           fill: "rgb(0,0,0)",
           stroke: null,
@@ -184,7 +205,6 @@ class EmpfGenerator {
           strokeUniform: false,
           strokeMiterLimit: 4,
           shadow: null,
-          visible: true,
           backgroundColor: "",
           fillRule: "nonzero",
           paintFirst: "fill",
@@ -193,10 +213,6 @@ class EmpfGenerator {
           skewY: 0,
           cropX: 0,
           cropY: 0,
-          selectable: true,
-          hasControls: true,
-          evented: true,
-          _layerNameCus: "Image Layer",
           _customType: "customImage",
           crossOrigin: null,
           filters: []
@@ -245,7 +261,18 @@ class EmpfGenerator {
         material_list: [],
         model_link: "",
         project_id: this._projectID,
-        print_param: `{"printModel":2,"imgQuality":300,"printLayerData":[],"format_size_w":${Math.round(e1UnitsToMM(this._printBedData.e1Data.base_map_width))},"format_size_h":${Math.round(e1UnitsToMM(this._printBedData.e1Data.base_map_height))},"format_size_w_non":${Math.round(e1UnitsToMM(this._printBedData.e1Data.base_map_width))},"format_size_h_non":${Math.round(e1UnitsToMM(this._printBedData.e1Data.base_map_height))},"cavas_map":"${this._printBedData.e1Data.base_map}","shape_cavas_map":""}`,
+        print_param: JSON.stringify({
+          printModel: 2,
+          imgQuality: 300,
+          printLayerData: [],
+          format_size_w: Math.round(e1UnitsToMM(this._printBedData.e1Data.base_map_width)),
+          format_size_h: Math.round(e1UnitsToMM(this._printBedData.e1Data.base_map_height)),
+          format_size_w_non: Math.round(e1UnitsToMM(this._printBedData.e1Data.base_map_width)),
+          format_size_h_non: Math.round(e1UnitsToMM(this._printBedData.e1Data.base_map_height)),
+          cavas_map: this._printBedData.e1Data.base_map,
+          color: this._canvasBackground.toUpperCase(),
+          useColorAsBg: true
+        }),
         scenes: "[]"
       }],
       project_info: {
@@ -269,11 +296,7 @@ class EmpfGenerator {
         tag_type: 0,
         thumb_file: null // this is inconsistent with eufyMake Studio, hopefully it doesn't break things
       },
-      canvasesIndex: 0,
-      gildException: false,
-      showGildException: false,
-      stickerException: false,
-      showStickerException: false
+      canvasesIndex: 0
     };
   }
 }
