@@ -26,6 +26,8 @@ const JSZip = require("jszip");
 const {v4: uuidv4} = require("uuid");
 
 const CanvasObjectEnum = require("../enums/CanvasObjectEnum.js");
+const CraftModeEnum = require("../enums/CraftModeEnum.js");
+const EmpfExportFormatEnum = require("../enums/EmpfExportFormatEnum.js");
 const InkModeEnum = require("../enums/InkModeEnum.js");
 const PrintBedConstants = require("../constants/PrintBedConstants.js");
 const PrintBedEnum = require("../enums/PrintBedEnum.js");
@@ -34,6 +36,25 @@ const e1UnitsToMM = require("../util/e1UnitsToMM.js");
 const mmToE1Units = require("../util/mmToE1Units.js");
 
 // For ease of development, all units are kept in mm until export, when they are converted to E1 units.
+
+const STUDIO_AES_GCM_KEY = Buffer.from("ab24ba760a896cd89eb9e15a9caec7fa");
+const STUDIO_AES_GCM_NONCE_LENGTH = 12;
+const STUDIO_WRAPPER_FIELDS = [
+  [1, Buffer.from([1])],
+  [3, Buffer.from([1])],
+  [4, Buffer.concat([Buffer.from("offline"), Buffer.alloc(33)])],
+  [6, Buffer.from("application/zip")],
+  [5, Buffer.from("file")]
+];
+
+const CraftModeTagType = {
+  [CraftModeEnum.flat]: 0,
+  [CraftModeEnum.texture]: 1,
+  [CraftModeEnum.reliefTexture]: 2,
+  [CraftModeEnum.textureRelief]: 3,
+  [CraftModeEnum.raised]: 4,
+  [CraftModeEnum.gild]: 8
+};
 
 /**
  * Class for generating .empf files
@@ -46,14 +67,20 @@ class EmpfGenerator {
    * @param {PrintBedEnum} [options.printBed=PrintBedEnum.standardFlatbed] - The print bed to use.
    * @param {string} [options.projectName=Untitled Design] - The name of the project.
    * @param {string} [options.canvasBackground=#ffffff] - The canvas background color, as a hex code.
+   * @param {CraftModeEnum} [options.craftMode=CraftModeEnum.flat] - The craft mode to mark in the project metadata.
+   * @param {EmpfExportFormatEnum} [options.exportFormat=EmpfExportFormatEnum.zip] - The EMPF container format to export.
    */
   constructor({
     printBed = PrintBedEnum.standardFlatbed,
     projectName = "Untitled Design",
-    canvasBackground = "#ffffff"
+    canvasBackground = "#ffffff",
+    craftMode = CraftModeEnum.flat,
+    exportFormat = EmpfExportFormatEnum.zip
   }) {
     this._printBed = printBed;
     this._projectName = projectName;
+    this._craftMode = craftMode;
+    this._exportFormat = exportFormat;
 
     this._version = "5.3.0";
     this._canvasObjects = [];
@@ -146,15 +173,26 @@ class EmpfGenerator {
   /**
    * Exports the canvas to a .empf file.
    * @param {string} outPath - The output path to export to.
+   * @param {Object} [options] - Export options.
+   * @param {EmpfExportFormatEnum} [options.exportFormat] - Override the EMPF container format for this export.
    */
-  async export(outPath) {
+  async export(outPath, options = {}) {
+    const exportFormat = options.exportFormat ?? this._exportFormat;
+    const zipBuf = await this._generateZipBuffer();
+    const outputBuf = exportFormat === EmpfExportFormatEnum.studioEncrypted
+      ? encryptStudioPayload(zipBuf)
+      : zipBuf;
+
+    await fs.writeFile(outPath, outputBuf);
+  }
+
+  async _generateZipBuffer() {
     const zip = new JSZip();
     zip.file("Asset/font/font_mapping.json", "{}");
     zip.file(`Asset/project_file/canvas_${this._canvasID}.json`, JSON.stringify(this._generateCanvasJSON()));
     zip.file("Metadata/project_info.json", JSON.stringify(this._generateProjectInfoJSON()));
 
-    const zipBuf = await zip.generateAsync({type: "nodebuffer"});
-    await fs.writeFile(outPath, zipBuf);
+    return zip.generateAsync({type: "nodebuffer"});
   }
 
   get _printBedData() {
@@ -245,6 +283,7 @@ class EmpfGenerator {
 
   _generateProjectInfoJSON() {
     const currentTimestamp = Math.floor(Date.now() / 1000);
+    const tagType = craftModeToTagType(this._craftMode);
     return {
       canvases: [{
         base_map: this._printBedData.e1Data.base_map,
@@ -257,7 +296,8 @@ class EmpfGenerator {
         is_standard_product: this._printBedData.e1Data.is_standard_product,
         create_time: currentTimestamp,
         update_time: currentTimestamp,
-        extra: '{"cutData":"","appCavas":"","pcCavas":"","canvasShape":null,"bleedingLine":null}',
+        tag_type: tagType,
+        extra: '{"cutData":"","appCavas":"","pcCavas":"","canvasShape":null,"bleedingLine":null,"new_func_tag":"00"}',
         material_list: [],
         model_link: "",
         project_id: this._projectID,
@@ -265,6 +305,7 @@ class EmpfGenerator {
           printModel: 2,
           imgQuality: 300,
           printLayerData: [],
+          subPrintType: this._craftMode,
           format_size_w: Math.round(e1UnitsToMM(this._printBedData.e1Data.base_map_width)),
           format_size_h: Math.round(e1UnitsToMM(this._printBedData.e1Data.base_map_height)),
           format_size_w_non: Math.round(e1UnitsToMM(this._printBedData.e1Data.base_map_width)),
@@ -293,12 +334,43 @@ class EmpfGenerator {
         works_status: 0,
         project_desc: "",
         project_type: 1,
-        tag_type: 0,
+        tag_type: tagType,
         thumb_file: null // this is inconsistent with eufyMake Studio, hopefully it doesn't break things
       },
       canvasesIndex: 0
     };
   }
+}
+
+function craftModeToTagType(craftMode) {
+  return CraftModeTagType[craftMode] ?? 0;
+}
+
+function encryptStudioPayload(zipBuf) {
+  const nonce = crypto.randomBytes(STUDIO_AES_GCM_NONCE_LENGTH);
+  const cipher = crypto.createCipheriv("aes-256-gcm", STUDIO_AES_GCM_KEY, nonce);
+  const ciphertext = Buffer.concat([cipher.update(zipBuf), cipher.final()]);
+  return Buffer.concat([
+    createStudioWrapperHeader(),
+    nonce,
+    ciphertext,
+    cipher.getAuthTag()
+  ]);
+}
+
+function createStudioWrapperHeader() {
+  const fieldBuffers = STUDIO_WRAPPER_FIELDS.map(([tag, value]) => {
+    const field = Buffer.alloc(3 + value.length);
+    field.writeUInt8(tag, 0);
+    field.writeUInt16BE(value.length, 1);
+    value.copy(field, 3);
+    return field;
+  });
+  const headerLength = 12 + fieldBuffers.reduce((sum, field) => sum + field.length, 0);
+  const header = Buffer.alloc(12);
+  header.write("eufyMake", 0, "ascii");
+  header.writeUInt32BE(headerLength, 8);
+  return Buffer.concat([header, ...fieldBuffers]);
 }
 
 module.exports = EmpfGenerator;
