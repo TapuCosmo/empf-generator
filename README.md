@@ -13,7 +13,13 @@ npm install empf-generator
 # Example
 
 ```js
-const {EmpfGenerator, InkModeEnum, PrintBedEnum} = require("empf-generator");
+const {
+  CraftModeEnum,
+  EmpfExportFormatEnum,
+  EmpfGenerator,
+  InkModeEnum,
+  PrintBedEnum
+} = require("empf-generator");
 const fs = require("fs");
 
 const imagePath = "./image.png";
@@ -22,6 +28,8 @@ const outPath = "./output.empf";
 (async () => {
   const image = fs.readFileSync(imagePath);
   const generator = new EmpfGenerator({
+    craftMode: CraftModeEnum.reliefTexture,
+    exportFormat: EmpfExportFormatEnum.studioEncrypted,
     printBed: PrintBedEnum.standardFlatbed,
     projectName: "Test Project"
   });
@@ -60,6 +68,8 @@ Creates a new EmpfGenerator.
 | [options.printBed] | <code>PrintBedEnum</code> | <code>PrintBedEnum.standardFlatbed</code> | The print bed to use. |
 | [options.projectName] | <code>string</code> | <code>&quot;Untitled Design&quot;</code> | The name of the project. |
 | [options.canvasBackground] | <code>string</code> | <code>&quot;#ffffff&quot;</code> | The canvas background color, as a hex code. |
+| [options.craftMode] | <code>CraftModeEnum</code> | <code>CraftModeEnum.flat</code> | The craft mode to mark in the project metadata. |
+| [options.exportFormat] | <code>EmpfExportFormatEnum</code> | <code>EmpfExportFormatEnum.zip</code> | The EMPF container format to export. |
 
 <a name="EmpfGenerator+addImage"></a>
 
@@ -91,7 +101,7 @@ Adds an image to the canvas.
 
 <a name="EmpfGenerator+export"></a>
 
-### empfGenerator.export(outPath)
+### empfGenerator.export(outPath, [options])
 Exports the canvas to a .empf file.
 
 **Kind**: instance method of [<code>EmpfGenerator</code>](#EmpfGenerator)  
@@ -99,6 +109,47 @@ Exports the canvas to a .empf file.
 | Param | Type | Description |
 | --- | --- | --- |
 | outPath | <code>string</code> | The output path to export to. |
+| [options] | <code>Object</code> | Export options. |
+| [options.exportFormat] | <code>EmpfExportFormatEnum</code> | Override the EMPF container format for this export. |
+
+<a name="CraftModeEnum"></a>
+
+## CraftModeEnum : <code>enum</code>
+Enum for eufyMake craft modes.
+
+**Kind**: global enum
+**Read only**: true
+**Properties**
+
+| Name | Type | Default |
+| --- | --- | --- |
+| flat | <code>number</code> | <code>-1</code> |
+| reliefTexture | <code>number</code> | <code>0</code> |
+| texture | <code>number</code> | <code>1</code> |
+| textureRelief | <code>number</code> | <code>2</code> |
+| brushStrokes | <code>number</code> | <code>3</code> |
+| poster | <code>number</code> | <code>4</code> |
+| sticker | <code>number</code> | <code>5</code> |
+| gild | <code>number</code> | <code>6</code> |
+| raised | <code>number</code> | <code>7</code> |
+
+<a name="EmpfExportFormatEnum"></a>
+
+## EmpfExportFormatEnum : <code>enum</code>
+Enum for EMPF container formats.
+
+**Kind**: global enum
+**Read only**: true
+**Properties**
+
+| Name | Type | Default |
+| --- | --- | --- |
+| zip | <code>string</code> | <code>&quot;zip&quot;</code> |
+| studioEncrypted | <code>string</code> | <code>&quot;studioEncrypted&quot;</code> |
+
+`studioEncrypted` wraps the generated ZIP in the `eufyMake` AES-GCM envelope
+observed in current eufyMake Studio exports. Older Studio builds may still
+accept the default plain ZIP-style EMPF files.
 
 <a name="InkModeEnum"></a>
 

@@ -21,6 +21,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 module.exports = {
   EmpfGenerator: require("./classes/EmpfGenerator.js"),
 
+  CraftModeEnum: require("./enums/CraftModeEnum.js"),
+  EmpfExportFormatEnum: require("./enums/EmpfExportFormatEnum.js"),
   InkModeEnum: require("./enums/InkModeEnum.js"),
   PrintBedEnum: require("./enums/PrintBedEnum.js")
 };
